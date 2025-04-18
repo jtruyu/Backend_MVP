@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Query, Body
 from pydantic import BaseModel
 import asyncpg
-import random
 import os
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,47 +28,29 @@ class Usuario(BaseModel):
     preguntas_sin_responder: int
     tiempo_usado: int
 
-@app.get("/temas")
-async def get_temas():
-    """ Devuelve una lista de los temas disponibles en la base de datos """
-    try:
-        conn = await connect_db()
-        if conn is None:
-            return {"error": "No se pudo conectar a la base de datos"}
-
-        temas = await conn.fetch('SELECT DISTINCT tema FROM "física_prácticas_cepreuni"')
-        await conn.close()
-        
-        return [t["tema"] for t in temas]
-    except Exception as e:
-        return {"error": str(e)}
-
 @app.get("/simulacro/")
-async def get_simulacro(num_preguntas: int = 10, temas: list[str] = Query([])):
-    """ Devuelve preguntas filtradas por los temas seleccionados sin repetir """
+async def get_simulacro():
+    """ Devuelve todos los ejercicios de la tabla ejercicios_admision ordenados por curso """
     try:
         conn = await connect_db()
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
 
-        query = 'SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad FROM "física_prácticas_cepreuni"'
+        # Definir el orden específico de los cursos
+        orden_cursos = ["RM", "Aritmética", "Algebra", "Geometría", "Trigonometría", "Física", "Química"]
         
-        if temas:
-            temas_str = "', '".join(temas)
-            query += f" WHERE tema IN ('{temas_str}')"
-
-        ejercicios = await conn.fetch(query)
+        # Consulta para obtener todos los ejercicios
+        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "ejercicios_admision"')
         await conn.close()
 
         if not ejercicios:
-            return {"error": "No hay ejercicios en la base de datos para los temas seleccionados"}
+            return {"error": "No hay ejercicios en la base de datos"}
 
-        # Evitar preguntas repetidas
-        if len(ejercicios) < num_preguntas:
-            return {"error": "No hay suficientes preguntas para mostrar"}
-
-        # Elegir aleatoriamente las preguntas sin repetirse
-        preguntas = random.sample(ejercicios, num_preguntas)
+        # Ordenar los ejercicios según el orden de cursos definido
+        ejercicios_ordenados = sorted(
+            ejercicios, 
+            key=lambda x: orden_cursos.index(x["curso"]) if x["curso"] in orden_cursos else 999
+        )
 
         preguntas_final = [
             {
@@ -83,11 +64,12 @@ async def get_simulacro(num_preguntas: int = 10, temas: list[str] = Query([])):
                     {"letra": "E", "texto": p["e"]},
                 ],
                 "respuesta_correcta": p["alt_correcta"],
+                "curso": p["curso"],
                 "tema": p["tema"],
-                "subtema": p["subtema"],
-                "dificultad": p["dificultad"]
+                "dificultad": p["dificultad"],
+                "ciclo": p["ciclo"]
             }
-            for p in preguntas
+            for p in ejercicios_ordenados
         ]
 
         return preguntas_final
