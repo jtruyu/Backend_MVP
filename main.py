@@ -27,7 +27,7 @@ class Usuario(BaseModel):
     preguntas_sin_responder: int
     tiempo_usado: int
     tipo: str  # "diagnostico" o "simulacro"
-    respuestas_usuario: dict  # claves marcadas
+    respuestas_usuario: dict  # claves marcadas por ejercicio
 
 @app.get("/simulacro")
 async def get_simulacro():
@@ -102,7 +102,7 @@ async def guardar_resultado(usuario: Usuario):
             return {"error": "No se pudo conectar a la base de datos"}
 
         await conn.execute('''
-            CREATE TABLE IF NOT EXISTS resultados_simulacro (
+            CREATE TABLE IF NOT EXISTS resultados_simulacro_v2 (
                 id SERIAL PRIMARY KEY,
                 nombre TEXT,
                 correo TEXT,
@@ -118,7 +118,7 @@ async def guardar_resultado(usuario: Usuario):
         ''')
 
         await conn.execute('''
-            INSERT INTO resultados_simulacro
+            INSERT INTO resultados_simulacro_v2
             (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, tipo, respuestas_usuario, fecha_realizacion)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         ''',
