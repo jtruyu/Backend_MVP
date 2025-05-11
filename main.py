@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Query, Body
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 import asyncpg
 import os
 import uvicorn
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
 
 app = FastAPI()
 
@@ -15,7 +16,7 @@ async def connect_db():
         conn = await asyncpg.connect(DATABASE_URL)
         return conn
     except Exception as e:
-        print(f"Error al conectar a la base de datos: {e}")
+        print(f"❌ Error al conectar a la base de datos: {e}")
         return None
 
 class Usuario(BaseModel):
@@ -27,7 +28,7 @@ class Usuario(BaseModel):
     preguntas_sin_responder: int
     tiempo_usado: int
     tipo: str  # "diagnostico" o "simulacro"
-    respuestas_usuario: dict  # claves marcadas por ejercicio
+    respuestas_usuario: dict
 
 @app.get("/simulacro")
 async def get_simulacro():
@@ -99,10 +100,15 @@ async def guardar_resultado(usuario: Usuario):
     try:
         conn = await connect_db()
         if conn is None:
-            return {"error": "No se pudo conectar a la base de datos"}
+            return JSONResponse(status_code=500, content={"error": "No se pudo conectar a la base de datos"})
 
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS resultados_simulacro_v2 (
+        if usuario.tipo == "diagnostico":
+            tabla = "resultados_diagnostico"
+        else:
+            tabla = "resultados_simulacro_v2"
+
+        await conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS {tabla} (
                 id SERIAL PRIMARY KEY,
                 nombre TEXT,
                 correo TEXT,
@@ -117,8 +123,8 @@ async def guardar_resultado(usuario: Usuario):
             )
         ''')
 
-        await conn.execute('''
-            INSERT INTO resultados_simulacro_v2
+        await conn.execute(f'''
+            INSERT INTO {tabla}
             (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, tipo, respuestas_usuario, fecha_realizacion)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         ''',
@@ -134,11 +140,13 @@ async def guardar_resultado(usuario: Usuario):
         datetime.now())
 
         await conn.close()
-        return {"status": "success", "message": "Resultado guardado correctamente"}
+        return {"status": "success", "message": f"Resultado guardado correctamente en {tabla}"}
 
     except Exception as e:
-        return {"error": str(e)}
+        print("❌ Error al guardar resultado:", e)
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -147,6 +155,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ejecución local
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
