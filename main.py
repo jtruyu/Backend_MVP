@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import asyncpg
 import os
@@ -13,13 +13,12 @@ DATABASE_URL = "postgresql://postgres.cnvcwksnsbwafgesgdcn:Pacucha.13.@aws-0-sa-
 
 async def connect_db():
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        return conn
+        return await asyncpg.connect(DATABASE_URL)
     except Exception as e:
         print(f"❌ Error al conectar a la base de datos: {e}")
         return None
 
-class Usuario(BaseModel):
+class UsuarioDiagnostico(BaseModel):
     nombre: str
     correo: str
     resultado: float
@@ -27,117 +26,95 @@ class Usuario(BaseModel):
     preguntas_incorrectas: int
     preguntas_sin_responder: int
     tiempo_usado: int
-    tipo: str  # "diagnostico" o "simulacro"
+    tipo: str  # debe ser "diagnostico"
+
+class UsuarioSimulacro(BaseModel):
+    nombre: str
+    correo: str
+    resultado: float
+    preguntas_correctas: int
+    preguntas_incorrectas: int
+    preguntas_sin_responder: int
+    tiempo_usado: int
+    tipo: str  # debe ser "simulacro"
     respuestas_usuario: dict
 
-@app.get("/simulacro")
-async def get_simulacro():
-    try:
-        conn = await connect_db()
-        if conn is None:
-            return {"error": "No se pudo conectar a la base de datos"}
-
-        orden_cursos = ["RM", "Aritmética", "Algebra", "Geometría", "Trigonometría", "Física", "Química"]
-        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "ejercicios_admision"')
-        await conn.close()
-
-        ejercicios_ordenados = sorted(ejercicios, key=lambda x: orden_cursos.index(x["curso"]) if x["curso"] in orden_cursos else 999)
-
-        return [
-            {
-                "ejercicio": p["ejercicio"],
-                "imagen": p["imagen"],
-                "alternativas": [
-                    {"letra": "A", "texto": p["a"]},
-                    {"letra": "B", "texto": p["b"]},
-                    {"letra": "C", "texto": p["c"]},
-                    {"letra": "D", "texto": p["d"]},
-                    {"letra": "E", "texto": p["e"]}
-                ],
-                "respuesta_correcta": p["alt_correcta"],
-                "curso": p["curso"],
-                "tema": p["tema"],
-                "dificultad": p["dificultad"],
-                "ciclo": p["ciclo"]
-            } for p in ejercicios_ordenados
-        ]
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/simulacro-oficial")
-async def get_simulacro_oficial():
-    try:
-        conn = await connect_db()
-        if conn is None:
-            return {"error": "No se pudo conectar a la base de datos"}
-
-        orden_cursos = ["RM", "RV", "Aritmética", "Álgebra", "Geometría", "Trigonometría", "Física", "Química"]
-        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso FROM "primer_simulacro"')
-        await conn.close()
-
-        ejercicios_ordenados = sorted(ejercicios, key=lambda x: orden_cursos.index(x["curso"]) if x["curso"] in orden_cursos else 999)
-
-        return [
-            {
-                "ejercicio": p["ejercicio"],
-                "imagen": p["imagen"],
-                "alternativas": [
-                    {"letra": "A", "texto": p["a"]},
-                    {"letra": "B", "texto": p["b"]},
-                    {"letra": "C", "texto": p["c"]},
-                    {"letra": "D", "texto": p["d"]},
-                    {"letra": "E", "texto": p["e"]}
-                ],
-                "respuesta_correcta": p["alt_correcta"],
-                "curso": p["curso"]
-            } for p in ejercicios_ordenados
-        ]
-    except Exception as e:
-        return {"error": str(e)}
-
 @app.post("/guardar-resultado")
-async def guardar_resultado(usuario: Usuario):
+async def guardar_resultado(data: dict):
     try:
         conn = await connect_db()
         if conn is None:
             return JSONResponse(status_code=500, content={"error": "No se pudo conectar a la base de datos"})
 
-        if usuario.tipo == "diagnostico":
-            tabla = "resultados_diagnostico"
-        else:
+        tipo = data.get("tipo")
+
+        if tipo == "simulacro":
+            usuario = UsuarioSimulacro(**data)
             tabla = "resultados_simulacro_v2"
 
-        await conn.execute(f'''
-            CREATE TABLE IF NOT EXISTS {tabla} (
-                id SERIAL PRIMARY KEY,
-                nombre TEXT,
-                correo TEXT,
-                resultado FLOAT,
-                preguntas_correctas INTEGER,
-                preguntas_incorrectas INTEGER,
-                preguntas_sin_responder INTEGER,
-                tiempo_usado INTEGER,
-                tipo TEXT,
-                respuestas_usuario JSONB,
-                fecha_realizacion TIMESTAMP
-            )
-        ''')
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {tabla} (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT,
+                    correo TEXT,
+                    resultado FLOAT,
+                    preguntas_correctas INTEGER,
+                    preguntas_incorrectas INTEGER,
+                    preguntas_sin_responder INTEGER,
+                    tiempo_usado INTEGER,
+                    tipo TEXT,
+                    respuestas_usuario JSONB,
+                    fecha_realizacion TIMESTAMP
+                )
+            ''')
 
-        await conn.execute(f'''
-            INSERT INTO {tabla}
-            (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, tipo, respuestas_usuario, fecha_realizacion)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        ''',
-        usuario.nombre,
-        usuario.correo,
-        usuario.resultado,
-        usuario.preguntas_correctas,
-        usuario.preguntas_incorrectas,
-        usuario.preguntas_sin_responder,
-        usuario.tiempo_usado,
-        usuario.tipo,
-        usuario.respuestas_usuario,
-        datetime.now())
+            await conn.execute(f'''
+                INSERT INTO {tabla}
+                (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, tipo, respuestas_usuario, fecha_realizacion)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            ''',
+            usuario.nombre,
+            usuario.correo,
+            usuario.resultado,
+            usuario.preguntas_correctas,
+            usuario.preguntas_incorrectas,
+            usuario.preguntas_sin_responder,
+            usuario.tiempo_usado,
+            usuario.tipo,
+            usuario.respuestas_usuario,
+            datetime.now())
+
+        else:  # diagnóstico
+            usuario = UsuarioDiagnostico(**data)
+            tabla = "resultados_simulacro"
+
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {tabla} (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT,
+                    correo TEXT,
+                    resultado FLOAT,
+                    preguntas_correctas INTEGER,
+                    preguntas_incorrectas INTEGER,
+                    preguntas_sin_responder INTEGER,
+                    tiempo_usado INTEGER,
+                    fecha_realizacion TIMESTAMP
+                )
+            ''')
+
+            await conn.execute(f'''
+                INSERT INTO {tabla}
+                (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, fecha_realizacion)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ''',
+            usuario.nombre,
+            usuario.correo,
+            usuario.resultado,
+            usuario.preguntas_correctas,
+            usuario.preguntas_incorrectas,
+            usuario.preguntas_sin_responder,
+            usuario.tiempo_usado,
+            datetime.now())
 
         await conn.close()
         return {"status": "success", "message": f"Resultado guardado correctamente en {tabla}"}
@@ -146,7 +123,7 @@ async def guardar_resultado(usuario: Usuario):
         print("❌ Error al guardar resultado:", e)
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# CORS
+# Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -155,7 +132,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ejecución local
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
