@@ -1,8 +1,7 @@
-# Archivo main.py extendido
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 app = FastAPI()
@@ -13,7 +12,7 @@ async def connect_db():
     try:
         return await asyncpg.connect(DATABASE_URL)
     except Exception as e:
-        print(f"DB error: {e}")
+        print(f"Error de conexión: {e}")
         return None
 
 class Usuario(BaseModel):
@@ -26,62 +25,63 @@ class Usuario(BaseModel):
     tiempo_usado: int
 
 @app.get("/simulacro")
-async def simulacro():
+async def get_simulacro():
     conn = await connect_db()
-    if not conn:
-        return {"error": "db error"}
-    rows = await conn.fetch('SELECT * FROM ejercicios_admision')
+    if conn is None:
+        return {"error": "No hay conexión con la base de datos"}
+    ejercicios = await conn.fetch('SELECT * FROM ejercicios_admision')
     await conn.close()
     return [
         {
-            "ejercicio": r["ejercicio"],
-            "imagen": r["imagen"],
+            "ejercicio": e["ejercicio"],
+            "imagen": e["imagen"],
             "alternativas": [
-                {"letra": "A", "texto": r["a"]},
-                {"letra": "B", "texto": r["b"]},
-                {"letra": "C", "texto": r["c"]},
-                {"letra": "D", "texto": r["d"]},
-                {"letra": "E", "texto": r["e"]},
+                {"letra": "A", "texto": e["a"]},
+                {"letra": "B", "texto": e["b"]},
+                {"letra": "C", "texto": e["c"]},
+                {"letra": "D", "texto": e["d"]},
+                {"letra": "E", "texto": e["e"]},
             ],
-            "respuesta_correcta": r["alt_correcta"],
-            "curso": r["curso"],
-            "tema": r["tema"],
-            "dificultad": r["dificultad"],
-            "ciclo": r["ciclo"]
-        } for r in rows
+            "respuesta_correcta": e["alt_correcta"],
+            "curso": e["curso"],
+            "tema": e["tema"],
+            "dificultad": e["dificultad"],
+            "ciclo": e["ciclo"]
+        } for e in ejercicios
     ]
 
 @app.get("/simulacro_completo")
-async def simulacro_completo():
+async def get_simulacro_completo():
     conn = await connect_db()
-    if not conn:
-        return {"error": "db error"}
-    rows = await conn.fetch('SELECT * FROM primer_simulacro')
+    if conn is None:
+        return {"error": "No hay conexión con la base de datos"}
+    ejercicios = await conn.fetch('SELECT * FROM primer_simulacro')
     await conn.close()
     return [
         {
-            "ejercicio": r["ejercicio"],
-            "imagen": r["imagen"],
+            "ejercicio": e["ejercicio"],
+            "imagen": e["imagen"],
             "alternativas": [
-                {"letra": "A", "texto": r["a"]},
-                {"letra": "B", "texto": r["b"]},
-                {"letra": "C", "texto": r["c"]},
-                {"letra": "D", "texto": r["d"]},
-                {"letra": "E", "texto": r["e"]},
+                {"letra": "A", "texto": e["a"]},
+                {"letra": "B", "texto": e["b"]},
+                {"letra": "C", "texto": e["c"]},
+                {"letra": "D", "texto": e["d"]},
+                {"letra": "E", "texto": e["e"]},
             ],
-            "respuesta_correcta": r["alt_correcta"],
-            "curso": r["curso"],
-            "tema": r["tema"],
-            "dificultad": r["dificultad"],
-            "ciclo": r["ciclo"]
-        } for r in rows
+            "respuesta_correcta": e["alt_correcta"],
+            "curso": e["curso"],
+            "tema": e["tema"],
+            "dificultad": e["dificultad"],
+            "ciclo": e["ciclo"]
+        } for e in ejercicios
     ]
 
 @app.post("/guardar-resultado")
-async def guardar(usuario: Usuario):
+async def guardar_resultado(usuario: Usuario):
     conn = await connect_db()
-    if not conn:
-        return {"error": "db error"}
+    if conn is None:
+        return {"error": "No hay conexión con la base de datos"}
+
     await conn.execute('''
         CREATE TABLE IF NOT EXISTS resultados_simulacro (
             id SERIAL PRIMARY KEY,
@@ -94,22 +94,25 @@ async def guardar(usuario: Usuario):
             tiempo_usado INT,
             fecha_realizacion TIMESTAMP
         )''')
+
     await conn.execute('''
         INSERT INTO resultados_simulacro (nombre, correo, resultado, preguntas_correctas,
         preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, fecha_realizacion)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     ''', usuario.nombre, usuario.correo, usuario.resultado, usuario.preguntas_correctas,
          usuario.preguntas_incorrectas, usuario.preguntas_sin_responder, usuario.tiempo_usado, datetime.now())
+
     await conn.close()
-    return {"status": "ok"}
+    return {"status": "success", "message": "Resultado guardado correctamente"}
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
