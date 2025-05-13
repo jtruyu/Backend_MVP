@@ -29,7 +29,7 @@ class Usuario(BaseModel):
     tiempo_usado: int
 
 @app.get("/simulacro/")
-async def get_simulacro():
+async def get_diagnostico():
     """ Devuelve todos los ejercicios de la tabla ejercicios_admision ordenados por curso """
     try:
         conn = await connect_db()
@@ -77,8 +77,8 @@ async def get_simulacro():
     except Exception as e:
         return {"error": str(e)}
 
-@app.post("/guardar-resultado")
-async def guardar_resultado(usuario: Usuario):
+@app.post("/guardar-diagnostico")
+async def guardar_diagnostico(usuario: Usuario):
     """Guarda los resultados del simulacro junto con la información del usuario"""
     try:
         conn = await connect_db()
