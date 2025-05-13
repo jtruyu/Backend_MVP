@@ -28,7 +28,7 @@ class Usuario(BaseModel):
     preguntas_sin_responder: int
     tiempo_usado: int
 
-@app.get("/simulacro/")
+@app.get("/diagnostico/")
 async def get_diagnostico():
     """ Devuelve todos los ejercicios de la tabla ejercicios_admision ordenados por curso """
     try:
