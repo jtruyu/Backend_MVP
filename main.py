@@ -5,7 +5,7 @@ import os
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-import random
+import random # Import random for shuffling
 
 app = FastAPI()
 
@@ -19,10 +19,11 @@ async def connect_db():
         print(f"Error al conectar a la base de datos: {e}")
         return None
 
+# Modelo para recibir los datos del usuario (para prueba diagnóstica)
 class Usuario(BaseModel):
     nombre: str
     correo: str
-    resultado: float
+   resultado: float
     preguntas_correctas: int
     preguntas_incorrectas: int
     preguntas_sin_responder: int
@@ -30,23 +31,25 @@ class Usuario(BaseModel):
 
 @app.get("/diagnostico/")
 async def get_diagnostico():
-    """ Devuelve todos los ejercicios de la tabla simulacro_admision ordenados por curso """ # Corrected table name in docstring
+    """ Devuelve todos los ejercicios de la tabla ejercicios_admision ordenados por curso """
     try:
         conn = await connect_db()
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
 
-        # Definir el orden específico de los cursos (Asegúrate que estos cursos existan en tu tabla 'simulacro_admision')
-        orden_cursos = ["RM", "Aritmética", "Algebra", "Geometría", "Trigonometría", "Física", "Química"] # [cite: 143] (Assuming course names are consistent)
+        # Definir el orden 
+específico de los cursos
+        orden_cursos = ["RM", "Aritmética", "Algebra", "Geometría", "Trigonometría", "Física", "Química"]
         
-        # Consulta para obtener todos los ejercicios de la tabla 'simulacro_admision'
-        # Asegúrate que las columnas (ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, etc.) son las mismas en 'simulacro_admision'
-        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "simulacro_admision"') # Corrected table name
+        # Consulta para obtener todos los ejercicios
+        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "ejercicios_admision"')
         await conn.close()
 
         if not ejercicios:
-            return {"error": "No hay ejercicios en la base de datos de 'simulacro_admision'"} # Corrected table name in error message
+            return {"error": "No 
+hay ejercicios en la base de datos"}
 
+        # Ordenar los ejercicios según el orden de cursos definido
         ejercicios_ordenados = sorted(
             ejercicios, 
             key=lambda x: orden_cursos.index(x["curso"]) if x["curso"] in orden_cursos else 999
@@ -54,7 +57,7 @@ async def get_diagnostico():
 
         preguntas_final = [
             {
-                "ejercicio": p["ejercicio"],
+               "ejercicio": p["ejercicio"],
                 "imagen": p["imagen"],
                 "alternativas": [
                     {"letra": "A", "texto": p["a"]},
@@ -64,7 +67,7 @@ async def get_diagnostico():
                     {"letra": "E", "texto": p["e"]},
                 ],
                 "respuesta_correcta": p["alt_correcta"],
-                "curso": p["curso"],
+               "curso": p["curso"],
                 "tema": p["tema"],
                 "dificultad": p["dificultad"],
                 "ciclo": p["ciclo"]
@@ -83,12 +86,13 @@ async def guardar_diagnostico(usuario: Usuario):
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
         
-       await conn.execute('''
+       # Crear la tabla si no existe
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS resultados_diagnostico (
                 id SERIAL PRIMARY KEY,
                 nombre TEXT,
                 correo TEXT,
-                resultado FLOAT,
+               resultado FLOAT,
                 preguntas_correctas INTEGER,
                 preguntas_incorrectas INTEGER,
                 preguntas_sin_responder INTEGER,
@@ -97,11 +101,12 @@ async def guardar_diagnostico(usuario: Usuario):
            )
         ''')
         
-       await conn.execute('''
+        # Insertar los datos del resultado
+        await conn.execute('''
             INSERT INTO resultados_diagnostico
             (nombre, correo, resultado, preguntas_correctas, preguntas_incorrectas, preguntas_sin_responder, tiempo_usado, fecha_realizacion)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ''', 
+       ''', 
         usuario.nombre, 
         usuario.correo, 
         usuario.resultado, 
@@ -118,7 +123,7 @@ async def guardar_diagnostico(usuario: Usuario):
     except Exception as e:
         return {"error": str(e)}
 
-# --- NUEVOS ENDPOINTS PARA BANCO DE PREGUNTAS (using física_prácticas_cepreuni) ---
+# --- NUEVOS ENDPOINTS PARA BANCO DE PREGUNTAS ---
 @app.get("/banco-preguntas/fisica/temas")
 async def get_temas_fisica_cepreuni():
     """ Devuelve todos los temas únicos de la tabla física_prácticas_cepreuni """
@@ -127,6 +132,7 @@ async def get_temas_fisica_cepreuni():
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
         
+        # Consulta para obtener temas únicos
         temas_data = await conn.fetch('SELECT DISTINCT tema FROM "física_prácticas_cepreuni" ORDER BY tema')
         await conn.close()
 
@@ -141,6 +147,7 @@ async def get_temas_fisica_cepreuni():
 @app.get("/banco-preguntas/fisica/ejercicios")
 async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
     """ Devuelve ejercicios de la tabla física_prácticas_cepreuni para los temas seleccionados """
+    # temas será un string separado por comas, ej: "Tema1,Tema2,Tema3"
     try:
         conn = await connect_db()
         if conn is None:
@@ -148,8 +155,10 @@ async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
 
         lista_temas = [tema.strip() for tema in temas.split(',')]
         
+        # Consulta para obtener ejercicios por temas
+        # Usamos ANY($1::text[]) para pasar la lista de temas
         query = """
-            SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo 
+            SELECT id, ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo 
             FROM "física_prácticas_cepreuni"
             WHERE tema = ANY($1::text[])
         """
@@ -157,10 +166,11 @@ async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
         await conn.close()
 
         if not ejercicios:
-            return {"message": "No hay ejercicios para los temas seleccionados"}
+            return {"message": "No hay ejercicios para los temas seleccionados"} # No es un error, puede que no haya preguntas para esa comb.
 
         preguntas_final = [
             {
+                "id": p["id"], # Es buena idea tener un ID único por pregunta
                 "ejercicio": p["ejercicio"],
                 "imagen": p["imagen"],
                 "alternativas": [
@@ -180,11 +190,12 @@ async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
             for p in ejercicios
         ]
         
-        random.shuffle(preguntas_final)
+        random.shuffle(preguntas_final) # Devolver las preguntas en orden aleatorio
         return preguntas_final
 
     except Exception as e:
         return {"error": str(e)}
+# --- FIN NUEVOS ENDPOINTS ---
 
 app.add_middleware(
     CORSMiddleware,
