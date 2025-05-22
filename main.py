@@ -41,7 +41,7 @@ async def get_diagnostico():
         
         # Consulta para obtener todos los ejercicios de la tabla 'simulacro_admision'
         # Asegúrate que las columnas (ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, etc.) son las mismas en 'simulacro_admision'
-        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM simulacro_admision') # Corrected table name
+        ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "simulacro_admision"') # Corrected table name
         await conn.close()
 
         if not ejercicios:
@@ -127,7 +127,7 @@ async def get_temas_fisica_cepreuni():
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
         
-        temas_data = await conn.fetch('SELECT DISTINCT tema FROM física_prácticas_cepreuni ORDER BY tema')
+        temas_data = await conn.fetch('SELECT DISTINCT tema FROM "física_prácticas_cepreuni" ORDER BY tema')
         await conn.close()
 
         if not temas_data:
