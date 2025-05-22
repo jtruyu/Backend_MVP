@@ -22,7 +22,7 @@ async def connect_db():
 class Usuario(BaseModel):
     nombre: str
     correo: str
-   resultado: float
+    resultado: float
     preguntas_correctas: int
     preguntas_incorrectas: int
     preguntas_sin_responder: int
@@ -54,7 +54,7 @@ async def get_diagnostico():
 
         preguntas_final = [
             {
-               "ejercicio": p["ejercicio"],
+                "ejercicio": p["ejercicio"],
                 "imagen": p["imagen"],
                 "alternativas": [
                     {"letra": "A", "texto": p["a"]},
@@ -64,7 +64,7 @@ async def get_diagnostico():
                     {"letra": "E", "texto": p["e"]},
                 ],
                 "respuesta_correcta": p["alt_correcta"],
-               "curso": p["curso"],
+                "curso": p["curso"],
                 "tema": p["tema"],
                 "dificultad": p["dificultad"],
                 "ciclo": p["ciclo"]
@@ -88,7 +88,7 @@ async def guardar_diagnostico(usuario: Usuario):
                 id SERIAL PRIMARY KEY,
                 nombre TEXT,
                 correo TEXT,
-               resultado FLOAT,
+                resultado FLOAT,
                 preguntas_correctas INTEGER,
                 preguntas_incorrectas INTEGER,
                 preguntas_sin_responder INTEGER,
