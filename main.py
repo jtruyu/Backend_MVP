@@ -141,7 +141,7 @@ async def get_temas_fisica_cepreuni():
         if conn is None:
             return {"error": "No se pudo conectar a la base de datos"}
             
-        # Consulta para obtener temas únicos
+        # Consulta para obtener temas únicos de la tabla con tilde
         temas_data = await conn.fetch('SELECT DISTINCT tema FROM "física_prácticas_cepreuni" ORDER BY tema')
         await conn.close()
 
@@ -156,7 +156,7 @@ async def get_temas_fisica_cepreuni():
 @app.get("/banco-preguntas/")
 async def get_banco_preguntas(temas: str = Query(..., description="Lista de temas separados por comas")):
     """ 
-    Devuelve ejercicios de la tabla fisica_practicas_cepreuni basados en los temas seleccionados.
+    Devuelve ejercicios de la tabla física_prácticas_cepreuni basados en los temas seleccionados.
     """
     try:
         conn = await connect_db()
@@ -165,9 +165,7 @@ async def get_banco_preguntas(temas: str = Query(..., description="Lista de tema
 
         temas_list = [tema.strip() for tema in temas.split(',')]
         
-        # Construir la cláusula WHERE para filtrar por temas usando IN
-        # Convertir la lista de temas a un formato que PostgreSQL pueda usar con IN
-        # La forma correcta de pasar una lista a ANY es $1::text[]
+        # Construir la cláusula WHERE para filtrar por temas usando ANY con la tabla con tilde
         query = 'SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo FROM "física_prácticas_cepreuni" WHERE tema = ANY($1::text[])'
         
         ejercicios = await conn.fetch(query, temas_list)
