@@ -18,7 +18,7 @@ async def connect_db():
         print(f"Error al conectar a la base de datos: {e}")
         return None
 
-# Modelo para recibir resultados del diagnóstico
+# Modelo para recibir los datos del usuario
 class Usuario(BaseModel):
     nombre: str
     correo: str
@@ -28,17 +28,20 @@ class Usuario(BaseModel):
     preguntas_sin_responder: int
     tiempo_usado: int
 
-# Ruta: obtener preguntas del diagnóstico
-@app.get("/diagnostico/")
+# Ruta original: Obtener preguntas del diagnóstico
+@app.get("/diagnostico")
 async def get_diagnostico():
     try:
         conn = await connect_db()
+        if conn is None:
+            return {"error": "No se pudo conectar a la base de datos"}
+
         orden_cursos = ["RM", "Aritmética", "Algebra", "Geometría", "Trigonometría", "Física", "Química"]
         ejercicios = await conn.fetch('SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, curso, tema, dificultad, ciclo FROM "ejercicios_admision"')
         await conn.close()
 
         ejercicios_ordenados = sorted(
-            ejercicios,
+            ejercicios, 
             key=lambda x: orden_cursos.index(x["curso"]) if x["curso"] in orden_cursos else 999
         )
 
@@ -67,11 +70,14 @@ async def get_diagnostico():
     except Exception as e:
         return {"error": str(e)}
 
-# Ruta: guardar resultados del diagnóstico
+# Ruta original: Guardar resultados del diagnóstico
 @app.post("/guardar-diagnostico")
 async def guardar_diagnostico(usuario: Usuario):
     try:
         conn = await connect_db()
+        if conn is None:
+            return {"error": "No se pudo conectar a la base de datos"}
+
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS resultados_diagnostico (
                 id SERIAL PRIMARY KEY,
@@ -107,29 +113,43 @@ async def guardar_diagnostico(usuario: Usuario):
     except Exception as e:
         return {"error": str(e)}
 
-# Ruta: obtener todos los temas únicos de física
+# NUEVA RUTA: Lista de temas de física
 @app.get("/temas-fisica")
 async def obtener_temas_fisica():
-    conn = await connect_db()
-    rows = await conn.fetch('SELECT DISTINCT tema FROM física_prácticas_cepreuni ORDER BY tema')
-    await conn.close()
-    return [r["tema"] for r in rows]
+    try:
+        conn = await connect_db()
+        if conn is None:
+            return {"error": "No se pudo conectar a la base de datos"}
 
-# Ruta: obtener preguntas filtradas por temas
+        rows = await conn.fetch('SELECT DISTINCT tema FROM física_prácticas_cepreuni ORDER BY tema')
+        await conn.close()
+        return [r["tema"] for r in rows]
+
+    except Exception as e:
+        return {"error": str(e)}
+
+# NUEVA RUTA: Preguntas filtradas por temas
 @app.post("/banco-preguntas")
 async def banco_preguntas(temas: list = Body(...)):
-    conn = await connect_db()
-    placeholders = ','.join(f'${i+1}' for i in range(len(temas)))
-    query = f'''
-        SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo
-        FROM física_prácticas_cepreuni
-        WHERE tema IN ({placeholders})
-    '''
-    rows = await conn.fetch(query, *temas)
-    await conn.close()
-    return [dict(r) for r in rows]
+    try:
+        conn = await connect_db()
+        if conn is None:
+            return {"error": "No se pudo conectar a la base de datos"}
 
-# CORS para permitir conexión desde el frontend
+        placeholders = ','.join(f'${i+1}' for i in range(len(temas)))
+        query = f'''
+            SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo
+            FROM física_prácticas_cepreuni
+            WHERE tema IN ({placeholders})
+        '''
+        rows = await conn.fetch(query, *temas)
+        await conn.close()
+        return [dict(r) for r in rows]
+
+    except Exception as e:
+        return {"error": str(e)}
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -138,7 +158,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ejecutar app local si es necesario
+# Ejecutar local
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
