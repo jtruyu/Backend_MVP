@@ -149,7 +149,7 @@ async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
         lista_temas = [tema.strip() for tema in temas.split(',')]
         
         query = """
-            SELECT id, ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo 
+            SELECT ejercicio, imagen, a, b, c, d, e, alt_correcta, tema, subtema, dificultad, tipo, ciclo 
             FROM "física_prácticas_cepreuni"
             WHERE tema = ANY($1::text[])
         """
@@ -161,7 +161,6 @@ async def get_ejercicios_fisica_por_temas(temas: str = Query(...)):
 
         preguntas_final = [
             {
-                "id": p["id"], 
                 "ejercicio": p["ejercicio"],
                 "imagen": p["imagen"],
                 "alternativas": [
